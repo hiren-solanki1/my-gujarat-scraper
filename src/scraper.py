@@ -1,12 +1,12 @@
 import logging
-import time
-from typing import Dict, Any, List, Optional
-from urllib.parse import urljoin
-import requests
+import os
+import json
+import re
+from typing import Dict, Any, List, Set
 from bs4 import BeautifulSoup
 from tqdm import tqdm
 
-from .utils import make_request, normalize_url
+from .utils import make_request
 
 logger = logging.getLogger(__name__)
 
@@ -14,62 +14,91 @@ class MaruGujaratScraper:
     """
     Scraper for MaruGujarat website
     """
-    
+
     def __init__(self, config: Dict[str, Any]):
         """
         Initialize the scraper
-        
+
         Args:
             config (Dict[str, Any]): Configuration dictionary
         """
         self.config = config
         self.base_url = config.get('base_url', 'https://www.marugujarat.in/maru-gujarat/')
+
+        # Get whitelist and blacklist from config
+        default_whitelist = [
+            "GPSC", "GSSSB", "Talati", "TET", "HTAT", "TAT", "Clerk", "PSI", "Police",
+            "Constable", "Gujarat", "OJAS", "High Court", "HC", "LRD", "Bharti",
+            "Exam",
+        ]
+        self.whitelist_keywords = config.get('whitelist_keywords', default_whitelist)
+        self.whitelist_keywords = [kw.lower() for kw in self.whitelist_keywords]
+
+        default_blacklist = [
+            "University", "Apprentice", "Apprenticeship", "Contract", "Outsourcing",
+            "District Project Coordinator", "Project Coordinator", "Project",
+            "Contractual", "Operator", "Walk-in Interview", "Rozgaar Bharti Melo",
+            "Consultant", "CSIR", "CSMCRI", "Samagra Shiksha", "College", "Hospital",
+            "IRMA", "TB", "GMERS", "GNLU", "Shikshan Sahayak", "Nagarpalika",
+            "Part-Time", "Technician", "Paper"
+        ]
+        self.blacklist_keywords = config.get('blacklist_keywords', default_blacklist)
+        self.blacklist_keywords = [kw.lower() for kw in self.blacklist_keywords]
+
+        self.existing_jobs = self._load_existing_notification()
+
         logger.info(f"Initializing MaruGujaratScraper with base URL: {self.base_url}")
+        logger.info(f"Loaded {len(self.existing_jobs)} existing job titles for duplicate checking")
+        logger.info(f"Using {len(self.whitelist_keywords)} whitelist keywords and {len(self.blacklist_keywords)} blacklist keywords")
 
-
-    def get_page_count(self) -> int:
+    def clean_title(self, title: str) -> str:
         """
-        Get the total number of pages to scrape
-        
+        Clean and rephrase notification title according to rules:
+        1. Remove emojis
+        2. Remove parentheses and text inside
+        3. Remove text after symbols like -, :, |
+
+        Args:
+            title (str): Original title
+
         Returns:
-            int: Total number of pages
+            str: Cleaned title
         """
-        try:
-            response = make_request(self.base_url, self.config)
-            if not response:
-                logger.error("Failed to get page count")
-                return 1
-            
-            soup = BeautifulSoup(response.content, 'lxml')
-            
-            # Look for pagination elements
-            pagination = soup.select('.pagination a')
-            if not pagination:
-                logger.warning("No pagination found, assuming single page")
-                return 1
-            
-            # Try to find the last page number
-            page_numbers = []
-            for page_link in pagination:
+        title = re.sub(r'[^\x00-\x7F]+', '', title)
+        title = re.sub(r'\([^)]*\)', '', title)
+        title = re.split(r'[-:|]', title)[0]
+        title = re.sub(r'\s+', ' ', title).strip()
+        return title
+
+    def _load_existing_notification(self) -> Set[str]:
+        """
+        Load existing notification titles and links to prevent duplicates
+
+        Returns:
+            Set[str]: Set of existing notification titles and links
+        """
+        existing_notifications = set()
+        data_dir = self.config.get('storage', {}).get('directory', 'data/processed')
+
+        if not os.path.exists(data_dir):
+            return existing_notifications
+
+        for filename in os.listdir(data_dir):
+            if filename.endswith('.json'):
                 try:
-                    page_num = int(page_link.text.strip())
-                    page_numbers.append(page_num)
-                except ValueError:
-                    # Skip non-numeric pagination elements
-                    continue
-            
-            if page_numbers:
-                return max(page_numbers)
-            else:
-                logger.warning("Could not determine page count, assuming single page")
-                return 1
-        
-        except Exception as e:
-            logger.error(f"Error getting page count: {e}")
-            return 1
-    
-    def get_job_listings_updates(self, page_number: int):
-        logger.info(f"Fetching job listings from page {page_number}")
+                    file_path = os.path.join(data_dir, filename)
+                    with open(file_path, 'r', encoding='utf-8') as f:
+                        jobs = json.load(f)
+                        for job in jobs:
+                            existing_notifications.add(job.get('title', '').lower())
+                            existing_notifications.add(job.get('link', '').lower())
+                except Exception as e:
+                    logger.warning(f"Error loading existing jobs from {filename}: {e}")
+
+        return existing_notifications
+
+    def get_notifications_listings_updates(self, page_number: int):
+        logger.info(f"Fetching notification listings from page {page_number}")
 
         headers = {
             "accept": "*/*",
@@ -96,90 +125,69 @@ class MaruGujaratScraper:
             "unid": "",
             "isblock": "",
             "postid": "",
-            "page": f'{page_number}',
+            "page": f"{page_number}",
             "lang": "",
             "ajax_nonce": "7b50977e00",
             "custom_data[sf_taxo]": "{}",
             "custom_data[sf_opera]": "{}",
         }
 
-        response = requests.post(
-            "https://www.marugujarat.in/wp-admin/admin-ajax.php",
-            headers=headers,
-            data=data,
+        url = "https://www.marugujarat.in/wp-admin/admin-ajax.php"
+
+        response = make_request(
+            url, self.config, method="POST", headers=headers, data=data
         )
 
-
         if not response:
-            logger.error(f"Failed to get job listings from page {page_number}")
+            logger.error(f"Failed to get notification listings from page {page_number}")
             return []
-        
 
-        blacklist_keywords = [
-            "University",
-            "Apprentice",
-            "Apprenticeship",
-            "Contract",
-            "Outsourcing",
-            "District Project Coordinator",
-            "Project Coordinator",
-            "Project",
-            "Contractual",
-            "Operator",
-            "Walk-in Interview",
-            "Rozgaar Bharti Melo",
-            "Consultant",
-            "CSIR",
-            "CSMCRI",
-            "Samagra Shiksha",
-            "College",
-            "Hospital",
-            "IRMA",
-            "TB",
-            "GMERS",
-            "GNLU",
-            "Shikshan Sahayak",
-            "Nagarpalika",
-            "Part-Time",
-            "Technician",
-            "Paper",
-        ]
-
-        blacklist_keywords = [kw.lower() for kw in blacklist_keywords]
-
-        soup = BeautifulSoup(response.content, 'lxml')
+        soup = BeautifulSoup(response.content, "lxml")
 
         results = []
 
         for tag in soup.select("h4.pt-cv-title a"):
-            title = tag.get_text(strip=True)
-            lower_title = title.lower()
+            original_title = tag.get_text(strip=True)
+            lower_title = original_title.lower()
+            link = tag["href"]
 
-            if not any(black_kw in lower_title for black_kw in blacklist_keywords):
+            if lower_title in self.existing_jobs or link.lower() in self.existing_jobs:
+                logger.debug(f"Skipping duplicate job: {original_title}")
+                continue
+
+            contains_whitelist = any(white_kw in lower_title for white_kw in self.whitelist_keywords)
+            not_contains_blacklist = not any(black_kw in lower_title for black_kw in self.blacklist_keywords)
+
+            if contains_whitelist and not_contains_blacklist:
+                cleaned_title = self.clean_title(original_title)
+
                 results.append({
-                    "title": title,
-                    "link": tag["href"],
+                    "title": cleaned_title,
+                    "original_title": original_title,  # Keep original for reference
+                    "link": link,
                 })
-        print('ress', results)
+
+                self.existing_jobs.add(lower_title)
+                self.existing_jobs.add(link.lower())
+
+        logger.info(f"Found {len(results)} new job listings on page {page_number}")
         return results
 
-    def scrape_all_jobs(self) -> List[Dict[str, Any]]:
+    def scrape_all_notifications(self) -> List[Dict[str, Any]]:
         """
-        Scrape all job listings
-        
+        Scrape all notification listings with randomized delays between page requests
+
         Returns:
-            List[Dict[str, Any]]: List of job details
+            List[Dict[str, Any]]: List of notifications
         """
-        logger.info("Starting to scrape all jobs")
-        
-        total_pages = self.get_page_count()
+        logger.info("Starting to scrape all notifications")
+        total_pages = self.config.get('pages_to_scrape', 5)
         logger.info(f"Found {total_pages} pages to scrape")
 
-        all_jobs = []
-        for page in tqdm(range(1, total_pages + 1), desc="Collecting job Updates"):
-            job_data = self.get_job_listings_updates(page)
-            all_jobs.extend(job_data)
-            time.sleep(2)
+        all_notifications = []
+        for page in tqdm(range(1, total_pages + 1), desc="Collecting notifications Updates"):
+            notifications_data = self.get_notifications_listings_updates(page)
+            all_notifications.extend(notifications_data)
 
-        logger.info(f"Successfully scraped {len(all_jobs)} job details")
-        return all_jobs
+        logger.info(f"Successfully scraped {len(all_notifications)} notifications")
+        return all_notifications

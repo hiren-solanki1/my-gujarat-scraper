@@ -1,23 +1,34 @@
 # MaruGujarat Scraper
 
-A Python web scraper for extracting job listings from the MaruGujarat website.
+A Python web scraper for extracting Notification from the MaruGujarat website.
 
-## Features
 
-- Scrapes job listings from MaruGujarat
-- Extracts detailed job information including titles, descriptions, and application details
-- Handles pagination
-- Respects rate limits and robots.txt
-- Provides multiple storage options (CSV, JSON, SQLite)
-- Configurable via YAML file
+## Configuration
+The scraper is configured via the config.yaml file. You can customize various settings:
+
+
+Customizing Whitelist and Blacklist Keywords
+The scraper filters job listings based on whitelist (include) and blacklist (exclude) keywords:
+
+
+Whitelist Keywords: Only include job listings that contain at least one of these keywords
+Blacklist Keywords: Exclude job listings that contain any of these keywords
+To modify these keywords, edit the config.yaml file:
+
 
 ## Installation
 
-1. Clone the repository:
-   ```bash
-   git clone https://github.com/yourusername/maru-gujarat-scraper.git
-   cd maru-gujarat-scraper
-   ```
+Create a virtual environment (recommended):
+python -m venv venv
+## On Windows
+venv\Scripts\activate
+## On macOS/Linux
+source venv/bin/activate
+
+## Install dependencies:
+
+pip install -r requirements.txt
+
 
 ## Project Structure
 
@@ -26,18 +37,12 @@ maru-gujarat-scraper/
 ├── src/
 │   ├── __init__.py
 │   ├── scraper.py     # Main scraping functionality
-│   ├── parser.py      # HTML parsing functionality
 │   ├── storage.py     # Data storage functionality
 │   ├── utils.py       # Utility functions
 │   └── config/
 │       └── __init__.py  # Configuration loading
 ├── data/
-│   ├── raw/           # Raw downloaded HTML
 │   └── processed/     # Processed data output
-├── tests/
-│   ├── __init__.py
-│   ├── test_scraper.py
-│   └── test_parser.py
 ├── logs/              # Log files
 ├── requirements.txt   # Dependencies
 ├── main.py            # Entry point
