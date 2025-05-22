@@ -1,0 +1,73 @@
+base_url: "https://www.marugujarat.in/maru-gujarat/"
+
+pages_to_scrape: 5
+
+whitelist_keywords:
+  - "GPSC"
+  - "GSSSB"
+  - "Talati"
+  - "TET"
+  - "HTAT"
+  - "TAT"
+  - "Clerk"
+  - "PSI"
+  - "Constable"
+  - "Gujarat"
+  - "OJAS"
+  - "Bharti"
+  - "Exam"
+  - "Call Letter"
+  - "Result"
+  - "Merit List"
+  - "Syllabus"
+
+blacklist_keywords:
+  - "University"
+  - "Apprentice"
+  - "Apprenticeship"
+  - "Contract"
+  - "Outsourcing"
+  - "District Project Coordinator"
+  - "Project Coordinator"
+  - "Project"
+  - "Contractual"
+  - "Operator"
+  - "Walk-in Interview"
+  - "Rozgaar Bharti Melo"
+  - "Consultant"
+  - "CSIR"
+  - "CSMCRI"
+  - "Samagra Shiksha"
+  - "College"
+  - "Hospital"
+  - "IRMA"
+  - "TB"
+  - "GMERS"
+  - "GNLU"
+  - "Shikshan Sahayak"
+  - "Nagarpalika"
+  - "Part-Time"
+  - "Technician"
+  - "Paper"
+
+# Storage configuration
+storage:
+  format: "json"
+  directory: "data/processed"             # Directory to store data
+  filename_prefix: "marugujarat_updates"  # Prefix for filenames
+
+# Scraper configuration
+scraper:
+  request_timeout: 5
+  max_retries: 3
+  retry_delay: 5
+  user_agent_rotation: true
+  rate_limit:
+    requests_per_minute: 100
+
+
+# Logging
+logging:
+  level: "INFO" # Options: DEBUG, INFO, WARNING, ERROR, CRITICAL
+  file: "logs/scraper.log"
+  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
