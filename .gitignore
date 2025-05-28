@@ -51,7 +51,6 @@ logs/
 *.log
 
 # Project specific
-config.yaml
 credentials.yaml
 *.json
 *.csv

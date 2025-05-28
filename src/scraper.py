@@ -96,6 +96,70 @@ class MaruGujaratScraper:
                     logger.warning(f"Error loading existing jobs from {filename}: {e}")
 
         return existing_notifications
+    
+    @staticmethod
+    def extract_apply_online_link(html_content):
+        soup = BeautifulSoup(html_content, 'html.parser')
+
+        rows = soup.find_all('tr')
+        for row in rows:
+            cols = row.find_all('td')
+            if len(cols) == 2:
+                description = cols[0].get_text(strip=True)
+                if "Apply Online" in description:
+                    link_tag = cols[1].find('a', href=True)
+                    if link_tag:
+                        return link_tag['href']
+
+        for row in rows:
+            cols = row.find_all('td')
+            if len(cols) == 2:
+                description = cols[0].get_text(strip=True)
+                if "Official Portal" in description:
+                    link_tag = cols[1].find('a', href=True)
+                    if link_tag:
+                        return link_tag['href']
+
+        return None
+
+    def get_notification_data(self, link: str) -> Dict[str, Any]:
+        logger.info(f"Fetching notification data from {link}")
+
+        headers = {
+            "accept": "*/*",
+            "accept-language": "en-US,en;q=0.9",
+            "cache-control": "no-cache",
+            "content-type": "application/x-www-form-urlencoded; charset=UTF-8",
+            "origin": "https://www.marugujarat.in",
+            "pragma": "no-cache",
+            "priority": "u=1, i",
+            "referer": "https://www.marugujarat.in/maru-gujarat/?_page=77",
+            "sec-ch-ua": '"Chromium";v="136", "Google Chrome";v="136", "Not.A/Brand";v="99"',
+            "sec-ch-ua-mobile": "?0",
+            "sec-ch-ua-platform": '"Windows"',
+            "sec-fetch-dest": "empty",
+            "sec-fetch-mode": "cors",
+            "sec-fetch-site": "same-origin",
+            "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36",
+            "x-requested-with": "XMLHttpRequest",
+        }
+
+        # Use make_request to fetch the page
+        response = make_request(
+            link, self.config, method="POST", headers=headers, data={}
+        )
+
+        if not response:
+            logger.error(f"Failed to get notification from link {link}")
+            return {}
+
+        soup = BeautifulSoup(response.content, "lxml")
+        publish_date_tag = soup.select_one("time.entry-date.published")
+        return {
+            "publish_date": publish_date_tag.get_text(strip=True) if publish_date_tag else "N/A",
+            "apply_online_link": self.extract_apply_online_link(response.content),
+        }
+
 
     def get_notifications_listings_updates(self, page_number: int):
         logger.info(f"Fetching notification listings from page {page_number}")
@@ -181,13 +245,28 @@ class MaruGujaratScraper:
             List[Dict[str, Any]]: List of notifications
         """
         logger.info("Starting to scrape all notifications")
-        total_pages = self.config.get('pages_to_scrape', 5)
+        total_pages = self.config.get('pages_to_scrape', 3)
         logger.info(f"Found {total_pages} pages to scrape")
 
         all_notifications = []
-        for page in tqdm(range(1, total_pages + 1), desc="Collecting notifications Updates"):
+        for page in tqdm(range(1, total_pages + 1), desc="Collecting notifications Pages Links"):
             notifications_data = self.get_notifications_listings_updates(page)
             all_notifications.extend(notifications_data)
 
-        logger.info(f"Successfully scraped {len(all_notifications)} notifications")
-        return all_notifications
+
+        notifications = []
+        for notification in tqdm(all_notifications, desc="Processing notification updates"):
+            link = notification.get("link")
+            data = self.get_notification_data(link)
+            if data:
+                small_dir = {
+                    "title": notification.get("title"),
+                    "page_link": link,
+                    "publish_date": data.get("publish_date", "N/A"),
+                    "apply_online_link": data.get("apply_online_link", ""),
+                }
+                notifications.append(small_dir)
+
+        logger.info(f"Successfully scraped {len(notifications)} notifications")
+
+        return notifications

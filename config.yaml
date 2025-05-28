@@ -1,6 +1,6 @@
 base_url: "https://www.marugujarat.in/maru-gujarat/"
 
-pages_to_scrape: 5
+pages_to_scrape: 1
 
 whitelist_keywords:
   - "GPSC"
@@ -53,7 +53,7 @@ blacklist_keywords:
 # Storage configuration
 storage:
   format: "json"
-  directory: "data/processed"             # Directory to store data
+  directory: "data"             # Directory to store data
   filename_prefix: "marugujarat_updates"  # Prefix for filenames
 
 # Scraper configuration

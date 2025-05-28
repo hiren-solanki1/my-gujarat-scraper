@@ -58,28 +58,26 @@ class MaruGujaratStorage:
             logger.warning("No jobs to save")
             return ""
 
-        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
         if self.format.lower() == 'csv':
-            return self._save_csv(jobs, timestamp)
+            return self._save_csv(jobs)
         elif self.format.lower() == 'json':
-            return self._save_json(jobs, timestamp)
+            return self._save_json(jobs)
         else:
             logger.error(f"Unsupported storage format: {self.format}")
             # Default to JSON
-            return self._save_json(jobs, timestamp)
+            return self._save_json(jobs)
 
-    def _save_csv(self, jobs: List[Dict[str, Any]], timestamp: str) -> str:
+    def _save_csv(self, jobs: List[Dict[str, Any]]) -> str:
         """
         Save job listings to CSV
 
         Args:
             jobs (List[Dict[str, Any]]): List of job details
-            timestamp (str): Timestamp string
 
         Returns:
             str: Path to the saved file
         """
-        filename = f"{self.filename_prefix}_{timestamp}.csv"
+        filename = f"{self.filename_prefix}.csv"
         filepath = os.path.join(self.directory, filename)
 
         try:
@@ -98,22 +96,11 @@ class MaruGujaratStorage:
             logger.error(f"Error saving to CSV: {e}")
             return ""
 
-    def _save_json(self, jobs: List[Dict[str, Any]], timestamp: str) -> str:
-        """
-        Save job listings to JSON
+    def _save_json(self, jobs: List[Dict[str, Any]]) -> str:
 
-        Args:
-            jobs (List[Dict[str, Any]]): List of job details
-            timestamp (str): Timestamp string
-
-        Returns:
-            str: Path to the saved file
-        """
-        filename = f"{self.filename_prefix}_{timestamp}.json"
+        filename = f"{self.filename_prefix}.json"
         filepath = os.path.join(self.directory, filename)
-
         try:
-            # Open file in write mode to overwrite if it exists
             with open(filepath, 'w', encoding='utf-8') as f:
                 json.dump(jobs, f, indent=2, ensure_ascii=False)
 
